@@ -1,9 +1,10 @@
 library html_extractor_spec;
 
-import '../_specs.dart';
-
-import 'package:angular/tools/html_extractor.dart';
 import 'package:angular/tools/common.dart';
+import 'package:angular/tools/html_extractor.dart';
+import 'package:unittest/unittest.dart';
+
+import '../jasmine_syntax.dart';
 import 'mock_io_service.dart';
 
 main() => describe('html_extractor', () {
@@ -15,8 +16,8 @@ main() => describe('html_extractor', () {
       '''
     });
 
-    var extractor = new HtmlExpressionExtractor([], ioService);
-    extractor.crawl('/');
+    var extractor = new HtmlExpressionExtractor([]);
+    extractor.crawl('/', ioService);
     expect(extractor.expressions.toList()..sort(),
         equals(['aux', 'ctrl.bar']));
   });
@@ -28,8 +29,8 @@ main() => describe('html_extractor', () {
       '''
     });
 
-    var extractor = new HtmlExpressionExtractor([], ioService);
-    extractor.crawl('/');
+    var extractor = new HtmlExpressionExtractor([]);
+    extractor.crawl('/', ioService);
     expect(extractor.expressions.toList()..sort(),
         equals(['aux', 'ctrl.bar']));
   });
@@ -41,8 +42,8 @@ main() => describe('html_extractor', () {
       '''
     });
 
-    var extractor = new HtmlExpressionExtractor([], ioService);
-    extractor.crawl('/');
+    var extractor = new HtmlExpressionExtractor([]);
+    extractor.crawl('/', ioService);
     expect(extractor.expressions.toList()..sort(),
         equals(['ctrl.bar']));
   });
@@ -52,8 +53,8 @@ main() => describe('html_extractor', () {
 
     var extractor = new HtmlExpressionExtractor([
       new DirectiveInfo('', [], ['foo', 'bar'])
-    ], ioService);
-    extractor.crawl('/');
+    ]);
+    extractor.crawl('/', ioService);
     expect(extractor.expressions.toList()..sort(),
         equals(['bar', 'foo']));
   });
@@ -67,8 +68,8 @@ main() => describe('html_extractor', () {
 
     var extractor = new HtmlExpressionExtractor([
       new DirectiveInfo('foo', ['bar'])
-    ], ioService);
-    extractor.crawl('/');
+    ]);
+    extractor.crawl('/', ioService);
     expect(extractor.expressions.toList()..sort(),
         equals(['ctrl.baz']));
   });
@@ -82,8 +83,8 @@ main() => describe('html_extractor', () {
 
     var extractor = new HtmlExpressionExtractor([
       new DirectiveInfo('[ng-repeat]', ['ng-repeat'])
-    ], ioService);
-    extractor.crawl('/');
+    ]);
+    extractor.crawl('/', ioService);
     // Basically we don't want to extract "foo in ctrl.bar".
     expect(extractor.expressions.toList()..sort(),
         equals(['ctrl.bar']));

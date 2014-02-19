@@ -22,20 +22,11 @@ class HttpBackend {
   async.Future request(String url,
       {String method, bool withCredentials, String responseType,
       String mimeType, Map<String, String> requestHeaders, sendData,
-      void onProgress(dom.ProgressEvent e)}) {
-    // Complete inside a then to work-around dartbug.com/13051
-    var c = new async.Completer();
-
-    dom.HttpRequest.request(url,
-        method: method,
-        withCredentials: withCredentials,
-        responseType: responseType,
-        mimeType: mimeType,
-        requestHeaders: requestHeaders,
-        sendData: sendData,
-        onProgress: onProgress).then((x) => c.complete(x));
-    return c.future;
-  }
+      void onProgress(dom.ProgressEvent e)}) =>
+      dom.HttpRequest.request(url, method: method,
+        withCredentials: withCredentials, responseType: responseType,
+        mimeType: mimeType, requestHeaders: requestHeaders,
+        sendData: sendData, onProgress: onProgress);
 }
 
 @NgInjectableService()
@@ -49,7 +40,7 @@ typedef Response(HttpResponse);
 typedef ResponseError(dynamic);
 
 /**
-* HttpInterceptors are used to modify the Http request.  They can be added to
+* HttpInterceptors are used to modify the Http request. They can be added to
 * [HttpInterceptors] or passed into [Http.call].
 */
 class HttpInterceptor {
@@ -61,9 +52,8 @@ class HttpInterceptor {
   /**
    * All parameters are optional.
    */
-  HttpInterceptor({
-      this.request, this.response,
-      this.requestError, this.responseError});
+  HttpInterceptor({this.request, this.response, this.requestError,
+                  this.responseError});
 }
 
 
@@ -78,7 +68,8 @@ class HttpInterceptor {
 */
 class DefaultTransformDataHttpInterceptor implements HttpInterceptor {
   Function request = (HttpResponseConfig config) {
-    if (config.data != null && config.data is! String && config.data is! dom.File) {
+    if (config.data != null && config.data is! String &&
+        config.data is! dom.File) {
       config.data = JSON.encode(config.data);
     }
     return config;
@@ -89,8 +80,7 @@ class DefaultTransformDataHttpInterceptor implements HttpInterceptor {
   static var _PROTECTION_PREFIX = new RegExp('^\\)\\]\\}\',?\\n');
   Function response = (HttpResponse r) {
     if (r.data is String) {
-      var d = r.data;
-      d = d.replaceFirst(_PROTECTION_PREFIX, '');
+      var d = r.data.replaceFirst(_PROTECTION_PREFIX, '');
       if (d.contains(_JSON_START) && d.contains(_JSON_END)) {
         d = JSON.decode(d);
       }
@@ -100,7 +90,6 @@ class DefaultTransformDataHttpInterceptor implements HttpInterceptor {
   };
 
   Function requestError, responseError;
-
 }
 
 /**
@@ -108,7 +97,8 @@ class DefaultTransformDataHttpInterceptor implements HttpInterceptor {
  */
 @NgInjectableService()
 class HttpInterceptors {
-  List<HttpInterceptor> _interceptors = [new DefaultTransformDataHttpInterceptor()];
+  List<HttpInterceptor> _interceptors =
+      [new DefaultTransformDataHttpInterceptor()];
 
   add(HttpInterceptor x) => _interceptors.add(x);
   addAll(List<HttpInterceptor> x) => _interceptors.addAll(x);
@@ -119,12 +109,13 @@ class HttpInterceptors {
   constructChain(List chain) {
     _interceptors.reversed.forEach((HttpInterceptor i) {
       // AngularJS has an optimization of not including null interceptors.
-      chain.insert(0, [
-          i.request == null ? (x) => x : i.request,
-          i.requestError]);
-      chain.add([
-          i.response == null ? (x) => x : i.response,
-          i.responseError]);
+      chain
+          ..insert(0, [
+              i.request == null ? (x) => x : i.request,
+              i.requestError])
+          ..add([
+              i.response == null ? (x) => x : i.response,
+              i.responseError]);
     });
   }
 
@@ -136,7 +127,8 @@ class HttpInterceptors {
   }
 
   /**
-   * Creates a [HttpInterceptors] from a [List].  Does not include the default interceptors.
+   * Creates a [HttpInterceptors] from a [List].  Does not include the default
+   * interceptors.
    */
   HttpInterceptors.of([List interceptors]) {
     _interceptors = interceptors;
@@ -163,30 +155,20 @@ class HttpResponseConfig {
   Map headers;
 
   var data;
-
-
   var _headersObj;
 
   /**
-   * Header accessor.  Given a string, it will return the matching header,
-   * case-insentivitively.  Without a string, returns a header object will
-   * upper-case keys.
+   * Header accessor. Given a string, it will return the matching header,
+   * case-insentivitively. Without a string, returns a header object with
+   * lower-case keys.
    */
   header([String name]) {
     if (_headersObj == null) {
       _headersObj = {};
-      headers.forEach((k,v) {
-        _headersObj[k.toLowerCase()] = v;
-      });
+      headers.forEach((k,v) => _headersObj[k.toLowerCase()] = v);
     }
 
-    if (name != null) {
-      name = name.toLowerCase();
-      if (!_headersObj.containsKey(name)) return null;
-      return _headersObj[name];
-    }
-
-    return _headersObj;
+    return name != null ? _headersObj[name.toLowerCase()] : _headersObj;
   }
 
   /**
@@ -238,18 +220,10 @@ class HttpResponse {
 
   /**
    * The response's headers.  Without parameters, this method will return the
-   * [Map] of headers.  With [key] parameter, this method will return the specific
-   * header.
+   * [Map] of headers.  With [key] parameter, this method will return the
+   * specific header.
    */
-  headers([String key]) {
-    if (key == null) {
-      return _headers;
-    }
-    if (_headers.containsKey(key)) {
-      return _headers[key];
-    }
-    return null;
-  }
+  headers([String key]) => key == null ? _headers : _headers[key];
 
   /**
    * Useful for debugging.
@@ -262,20 +236,12 @@ class HttpResponse {
  */
 @NgInjectableService()
 class HttpDefaultHeaders {
-  static String _defaultContentType = 'application/json;charset=utf-8';
-  Map _headers = {
-    'COMMON': {
-        'Accept': 'application/json, text/plain, */*'
-    },
-    'POST' : {
-        'Content-Type': _defaultContentType
-    },
-    'PUT' : {
-      'Content-Type': _defaultContentType
-    },
-    'PATCH' : {
-      'Content-Type': _defaultContentType
-    }
+  static var _defaultContentType = 'application/json;charset=utf-8';
+  var _headers = {
+    'COMMON': {'Accept': 'application/json, text/plain, */*'},
+    'POST' : {'Content-Type': _defaultContentType},
+    'PUT' : {'Content-Type': _defaultContentType },
+    'PATCH' : {'Content-Type': _defaultContentType}
   };
 
   _applyHeaders(method, ucHeaders, headers) {
@@ -304,9 +270,7 @@ class HttpDefaultHeaders {
    * Passing 'common' as [method] will return a Map that contains headers
    * common to all operations.
    */
-  operator[](method) {
-    return _headers[method.toUpperCase()];
-  }
+  operator[](method) => _headers[method.toUpperCase()];
 }
 
 /**
@@ -343,12 +307,12 @@ class HttpDefaults {
   /**
    * Constructor intended for DI.
    */
-  HttpDefaults(HttpDefaultHeaders this.headers);
+  HttpDefaults(this.headers);
 }
 
 /**
- * The [Http] service facilitates communication with the remote HTTP servers.  It
- * uses dart:html's [HttpRequest] and provides a number of features on top
+ * The [Http] service facilitates communication with the remote HTTP servers.
+ * It uses dart:html's [HttpRequest] and provides a number of features on top
  * of the core Dart library.
  *
  * For unit testing, applications should use the [MockHttpBackend] service.
@@ -359,12 +323,12 @@ class HttpDefaults {
  *
  *      http(method: 'GET', url: '/someUrl')
  *        .then((HttpResponse response) { .. },
- *               onError: (HttpRequest request) { .. });
+ *              onError: (HttpRequest request) { .. });
  *
  * A response status code between 200 and 299 is considered a success status and
- * will result in the 'then' being called. Note that if the response is a redirect,
- * Dart's [HttpRequest] will transparently follow it, meaning that the error callback will not be
- * called for such responses.
+ * will result in the 'then' being called. Note that if the response is a
+ * redirect, Dart's [HttpRequest] will transparently follow it, meaning that the
+ * error callback will not be called for such responses.
  *
  * # Shortcut methods
  *
@@ -405,7 +369,7 @@ class HttpDefaults {
  */
 @NgInjectableService()
 class Http {
-  Map<String, async.Future<HttpResponse>> _pendingRequests = <String, async.Future<HttpResponse>>{};
+  var _pendingRequests = <String, async.Future<HttpResponse>>{};
   BrowserCookies _cookies;
   LocationWrapper _location;
   UrlRewriter _rewriter;
@@ -420,36 +384,27 @@ class Http {
   /**
    * Constructor, useful for DI.
    */
-  Http(BrowserCookies this._cookies,
-       LocationWrapper this._location,
-       UrlRewriter this._rewriter,
-       HttpBackend this._backend,
-       HttpDefaults this.defaults,
-       HttpInterceptors this._interceptors);
+  Http(this._cookies, this._location, this._rewriter, this._backend,
+       this.defaults, this._interceptors);
 
   /**
    * DEPRECATED
    */
-  async.Future<String> getString(String url,
-      {bool withCredentials, void onProgress(dom.ProgressEvent e), Cache cache}) {
-    return request(url,
-        withCredentials: withCredentials,
-        onProgress: onProgress,
-        cache: cache).then((HttpResponse xhr) => xhr.responseText);
-  }
+  async.Future<String> getString(String url, {bool withCredentials,
+      void onProgress(dom.ProgressEvent e), Cache cache}) =>
+      request(url,
+              withCredentials: withCredentials,
+              onProgress: onProgress,
+              cache: cache).then((HttpResponse xhr) => xhr.responseText);
 
   /**
-   * Parse a request URL and determine whether this is a same-origin request as the application document.
-   *
-   * @param {string|Uri} requestUrl The url of the request as a string that will be resolved
-   * or a parsed URL object.
-   * @returns {boolean} Whether the request is for the same origin as the application document.
+   * Parse a [requestUrl] and determine whether this is a same-origin request as
+   * the application document.
    */
-  _urlIsSameOrigin(String requestUrl) {
+  bool _urlIsSameOrigin(String requestUrl) {
     Uri originUrl = Uri.parse(_location.location.toString());
     Uri parsed = originUrl.resolve(requestUrl);
-    return (parsed.scheme == originUrl.scheme &&
-            parsed.host == originUrl.host);
+    return (parsed.scheme == originUrl.scheme && parsed.host == originUrl.host);
   }
 
 /**
@@ -489,44 +444,39 @@ class Http {
 
     method = method.toUpperCase();
 
-    if (headers == null) { headers = {}; }
+    if (headers == null) headers = {};
     defaults.headers.setHeaders(headers, method);
 
     var xsrfValue = _urlIsSameOrigin(url) ?
-        _cookies[xsrfCookieName != null ? xsrfCookieName : defaults.xsrfCookieName] : null;
+        _cookies[xsrfCookieName != null ? xsrfCookieName : defaults.xsrfCookieName] :
+        null;
     if (xsrfValue != null) {
-      headers[xsrfHeaderName != null ? xsrfHeaderName : defaults.xsrfHeaderName] = xsrfValue;
+      headers[xsrfHeaderName != null ? xsrfHeaderName : defaults.xsrfHeaderName]
+          = xsrfValue;
     }
 
     // Check for functions in headers
-    headers.forEach((k,v) {
-      if (v is Function) {
-        headers[k] = v();
-      }
+    headers.forEach((k, v) {
+      if (v is Function) headers[k] = v();
     });
 
     var serverRequest = (HttpResponseConfig config) {
-      assert(config.data == null || config.data is String || config.data is dom.File);
+      assert(config.data == null || config.data is String ||
+          config.data is dom.File);
 
       // Strip content-type if data is undefined
       if (config.data == null) {
-        List<String> toRemove = [];
-        headers.forEach((h, _) {
-          if (h.toUpperCase() == 'CONTENT-TYPE') {
-            toRemove.add(h);
-          };
-        });
-        toRemove.forEach((x) => headers.remove(x));
+        new List.from(headers.keys)
+            .where((h) => h.toUpperCase() == 'CONTENT-TYPE')
+            .forEach((h) => headers.remove(h));
       }
 
-
-      return request(
-          null,
-          config: config,
-          method: method,
-          sendData: config.data,
-          requestHeaders: config.headers,
-          cache: cache);
+      return request(null,
+                     config: config,
+                     method: method,
+                     sendData: config.data,
+                     requestHeaders: config.headers,
+                     cache: cache);
     };
 
     var chain = [[serverRequest, null]];
@@ -567,9 +517,9 @@ class Http {
     interceptors,
     cache,
     timeout
-  }) => call(method: 'GET', url: url, data: data, params: params, headers: headers,
-             xsrfHeaderName: xsrfHeaderName, xsrfCookieName: xsrfCookieName,
-             interceptors: interceptors,
+  }) => call(method: 'GET', url: url, data: data, params: params,
+             headers: headers, xsrfHeaderName: xsrfHeaderName,
+             xsrfCookieName: xsrfCookieName, interceptors: interceptors,
              cache: cache, timeout: timeout);
 
   /**
@@ -585,9 +535,9 @@ class Http {
     interceptors,
     cache,
     timeout
-  }) => call(method: 'DELETE', url: url, data: data, params: params, headers: headers,
-             xsrfHeaderName: xsrfHeaderName, xsrfCookieName: xsrfCookieName,
-             interceptors: interceptors,
+  }) => call(method: 'DELETE', url: url, data: data, params: params,
+             headers: headers, xsrfHeaderName: xsrfHeaderName,
+             xsrfCookieName: xsrfCookieName, interceptors: interceptors,
              cache: cache, timeout: timeout);
 
   /**
@@ -603,9 +553,9 @@ class Http {
     interceptors,
     cache,
     timeout
-  }) => call(method: 'HEAD', url: url, data: data, params: params, headers: headers,
-             xsrfHeaderName: xsrfHeaderName, xsrfCookieName: xsrfCookieName,
-             interceptors: interceptors,
+  }) => call(method: 'HEAD', url: url, data: data, params: params,
+             headers: headers, xsrfHeaderName: xsrfHeaderName,
+             xsrfCookieName: xsrfCookieName, interceptors: interceptors,
              cache: cache, timeout: timeout);
 
   /**
@@ -620,9 +570,9 @@ class Http {
     interceptors,
     cache,
     timeout
-  }) => call(method: 'PUT', url: url, data: data, params: params, headers: headers,
-             xsrfHeaderName: xsrfHeaderName, xsrfCookieName: xsrfCookieName,
-             interceptors: interceptors,
+  }) => call(method: 'PUT', url: url, data: data, params: params,
+             headers: headers, xsrfHeaderName: xsrfHeaderName,
+             xsrfCookieName: xsrfCookieName, interceptors: interceptors,
              cache: cache, timeout: timeout);
 
   /**
@@ -637,9 +587,9 @@ class Http {
     interceptors,
     cache,
     timeout
-  }) => call(method: 'POST', url: url, data: data, params: params, headers: headers,
-             xsrfHeaderName: xsrfHeaderName, xsrfCookieName: xsrfCookieName,
-             interceptors: interceptors,
+  }) => call(method: 'POST', url: url, data: data, params: params,
+             headers: headers, xsrfHeaderName: xsrfHeaderName,
+             xsrfCookieName: xsrfCookieName, interceptors: interceptors,
              cache: cache, timeout: timeout);
 
   /**
@@ -655,9 +605,9 @@ class Http {
     interceptors,
     cache,
     timeout
-  }) => call(method: 'JSONP', url: url, data: data, params: params, headers: headers,
-             xsrfHeaderName: xsrfHeaderName, xsrfCookieName: xsrfCookieName,
-             interceptors: interceptors,
+  }) => call(method: 'JSONP', url: url, data: data, params: params,
+             headers: headers, xsrfHeaderName: xsrfHeaderName,
+             xsrfCookieName: xsrfCookieName, interceptors: interceptors,
              cache: cache, timeout: timeout);
 
   /**
@@ -666,22 +616,18 @@ class Http {
   static Map<String, String> parseHeaders(dom.HttpRequest value) {
     var headers = value.getAllResponseHeaders();
 
-    var parsed = {}, key, val, i;
+    var parsed = {};
 
     if (headers == null) return parsed;
 
     headers.split('\n').forEach((line) {
-      i = line.indexOf(':');
+      var i = line.indexOf(':');
       if (i == -1) return;
-      key = line.substring(0, i).trim().toLowerCase();
-      val = line.substring(i + 1).trim();
+      var key = line.substring(0, i).trim().toLowerCase();
 
-      if (key != '') {
-        if (parsed.containsKey(key)) {
-          parsed[key] += ', ' + val;
-        } else {
-          parsed[key] = val;
-        }
+      if (key.isNotEmpty) {
+        var val = line.substring(i + 1).trim();
+        parsed[key] = parsed.containsKey(key) ? "${parsed[key]}, $val" : val;
       }
     });
     return parsed;
@@ -691,9 +637,8 @@ class Http {
    * Returns an [Iterable] of [Future] [HttpResponse]s for the requests
    * that the [Http] service is currently waiting for.
    */
-  Iterable<async.Future<HttpResponse> > get pendingRequests {
-    return _pendingRequests.values;
-  }
+  Iterable<async.Future<HttpResponse> > get pendingRequests =>
+      _pendingRequests.values;
 
   /**
    * DEPRECATED
@@ -717,7 +662,7 @@ class Http {
       url = _buildUrl(config.url, config.params);
     }
 
-    if (cache is bool && cache == false) {
+    if (cache == false) {
       cache = null;
     } else if (cache == null) {
       cache = defaults.cache;
@@ -726,9 +671,11 @@ class Http {
     if (cache != null && _pendingRequests.containsKey(url)) {
       return _pendingRequests[url];
     }
-    var cachedValue = (cache != null && method == 'GET') ? cache.get(url) : null;
-    if (cachedValue != null) {
-      return new async.Future.value(new HttpResponse.copy(cachedValue));
+    var cachedResponse = (cache != null && method == 'GET')
+        ? cache.get(url)
+        : null;
+    if (cachedResponse != null) {
+      return new async.Future.value(new HttpResponse.copy(cachedResponse));
     }
 
     var result = _backend.request(url,
@@ -742,19 +689,14 @@ class Http {
       // TODO: Uncomment after apps migrate off of this class.
       // assert(value.status >= 200 && value.status < 300);
 
-      var response = new HttpResponse(
-          value.status, value.responseText, parseHeaders(value),
-          config);
+      var response = new HttpResponse(value.status, value.responseText,
+          parseHeaders(value), config);
 
-      if (cache != null) {
-        cache.put(url, response);
-      }
+      if (cache != null) cache.put(url, response);
       _pendingRequests.remove(url);
       return response;
     }, onError: (error) {
-      if (error is! dom.ProgressEvent) {
-        throw error;
-      }
+      if (error is! dom.ProgressEvent) throw error;
       dom.ProgressEvent event = error;
       _pendingRequests.remove(url);
       dom.HttpRequest request = event.currentTarget;
@@ -762,8 +704,7 @@ class Http {
           new HttpResponse(request.status, request.response,
               parseHeaders(request), config));
     });
-    _pendingRequests[url] = result;
-    return result;
+    return _pendingRequests[url] = result;
   }
 
   _buildUrl(String url, Map<String, dynamic> params) {
@@ -776,21 +717,18 @@ class Http {
       if (value is! List) value = [value];
 
       value.forEach((v) {
-        if (v is Map) {
-          v = JSON.encode(v);
-        }
-        parts.add(_encodeUriQuery(key) + '=' +
-        _encodeUriQuery("$v"));
+        if (v is Map) v = JSON.encode(v);
+        parts.add(_encodeUriQuery(key) + '=' + _encodeUriQuery("$v"));
       });
     });
     return url + ((url.indexOf('?') == -1) ? '?' : '&') + parts.join('&');
   }
 
   _encodeUriQuery(val, {bool pctEncodeSpaces: false}) =>
-    Uri.encodeComponent(val)
-      .replaceAll('%40', '@')
-      .replaceAll('%3A', ':')
-      .replaceAll('%24', r'$')
-      .replaceAll('%2C', ',')
-      .replaceAll('%20', pctEncodeSpaces ? '%20' : '+');
+      Uri.encodeComponent(val)
+          .replaceAll('%40', '@')
+          .replaceAll('%3A', ':')
+          .replaceAll('%24', r'$')
+          .replaceAll('%2C', ',')
+          .replaceAll('%20', pctEncodeSpaces ? '%20' : '+');
 }

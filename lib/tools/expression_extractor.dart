@@ -10,24 +10,27 @@ import 'package:angular/tools/common.dart';
 
 import 'package:di/di.dart';
 import 'package:di/dynamic_injector.dart';
-import 'package:angular/core/parser/parser_library.dart';
-import 'package:angular/tools/parser_generator/dart_code_gen.dart';
+
+import 'package:angular/core/module.dart';
+import 'package:angular/core/parser/parser.dart';
 import 'package:angular/tools/parser_generator/generator.dart';
 
 main(args) {
-  if (args.length < 6) {
+  if (args.length < 5) {
     print('Usage: expression_extractor file_to_scan html_root header_file '
-          'footer_file output package_roots+');
+          'footer_file output [package_roots+]');
     exit(0);
   }
   IoService ioService = new IoServiceImpl();
 
-  var sourceCrawler = new SourceCrawlerImpl(args.sublist(2));
-  var sourceMetadataExtractor = new SourceMetadataExtractor(sourceCrawler);
+  var packageRoots =
+      (args.length < 6) ? [Platform.packageRoot] : args.sublist(5);
+  var sourceCrawler = new SourceCrawlerImpl(packageRoots);
+  var sourceMetadataExtractor = new SourceMetadataExtractor();
   List<DirectiveInfo> directives =
-      sourceMetadataExtractor.gatherDirectiveInfo(args[0]);
-  var htmlExtractor = new HtmlExpressionExtractor(directives, ioService);
-  htmlExtractor.crawl(args[1]);
+      sourceMetadataExtractor.gatherDirectiveInfo(args[0], sourceCrawler);
+  var htmlExtractor = new HtmlExpressionExtractor(directives);
+  htmlExtractor.crawl(args[1], ioService);
 
   var expressions = htmlExtractor.expressions;
   expressions.add('null');
@@ -35,22 +38,24 @@ main(args) {
   var headerFile = args[2];
   var footerFile = args[3];
   var outputFile = args[4];
-  SourcePrinter _prt;
+  SourcePrinter printer;
   if (outputFile == '--') {
-    _prt = new SourcePrinter();
+    printer = new SourcePrinter();
   } else {
-    _prt = new FileSourcePrinter(outputFile);
+    printer = new FileSourcePrinter(outputFile);
   }
 
   // Output the header file first.
   if (headerFile != '') {
-    _prt.printSrc(_readFile(headerFile));
+    printer.printSrc(_readFile(headerFile));
   }
 
-  _prt.printSrc('// Found ${expressions.length} expressions');
+  printer.printSrc('// Found ${expressions.length} expressions');
   Module module = new Module()
-    ..type(ParserBackend, implementedBy: DartCodeGen)
-    ..value(SourcePrinter, _prt);
+      ..type(Parser, implementedBy: DynamicParser)
+      ..type(ParserBackend, implementedBy: DynamicParserBackend)
+      ..type(FilterMap, implementedBy: NullFilterMap)
+      ..value(SourcePrinter, printer);
   Injector injector =
       new DynamicInjector(modules: [module], allowImplicitInjection: true);
 
@@ -59,7 +64,7 @@ main(args) {
 
   // Output footer last.
   if (footerFile != '') {
-    _prt.printSrc(_readFile(footerFile));
+    printer.printSrc(_readFile(footerFile));
   }
 }
 

@@ -1259,6 +1259,24 @@ main() => describe('http', () {
           }));
 
 
+          it('should call onError on a JSON parse error', async(() {
+            backend.expect('GET', '/url').respond('[x]');
+            var callbackCalled = false;
+            var onErrorCalled = false;
+            http.get('/url').then((_) {
+              callbackCalled = true;
+            }, onError: (e,s) {
+              // Dartium throws "Unexpected character"
+              // dart2js throws "Unexpected token"
+              expect('$e').toContain('Unexpected');
+              onErrorCalled = true;
+            });
+            flush();
+            expect(callbackCalled).toBeFalsy();
+            expect(onErrorCalled).toBeTruthy();
+          }));
+
+
           it('should not deserialize tpl beginning with ng expression', async(() {
             backend.expect('GET', '/url').respond('{{some}}');
             http.get('/url').then(callback);
@@ -1303,10 +1321,11 @@ main() => describe('http', () {
 });
 
 class FakeFile implements File {
-  final DateTime lastModifiedDate = null;
-  final String name = null;
-  final String relativePath = null;
-  final int size = 0;
-  final String type = null;
+  DateTime get lastModifiedDate => null;
+  int get lastModified => 0;
+  String get name => null;
+  String get relativePath => null;
+  int get size => 0;
+  String get type => null;
   Blob slice([int start, int end, String contentType]) => null;
 }

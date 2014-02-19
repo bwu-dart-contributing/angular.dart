@@ -2,9 +2,9 @@ library angular.source_metadata_extractor ;
 
 import 'package:analyzer/src/generated/ast.dart';
 
-import 'source_crawler.dart';
-import '../utils.dart';
-import 'common.dart';
+import 'package:angular/tools/source_crawler.dart';
+import 'package:angular/tools/common.dart';
+import 'package:angular/utils.dart';
 
 const String _COMPONENT = '-component';
 const String _DIRECTIVE = '-directive';
@@ -20,35 +20,34 @@ const Map<String, String> _attrAnnotationsToSpec = const {
 };
 
 class SourceMetadataExtractor {
-  SourceCrawler sourceCrawler;
   DirectiveMetadataCollectingVisitor metadataVisitor;
 
-  SourceMetadataExtractor(this.sourceCrawler,
-      [DirectiveMetadataCollectingVisitor this.metadataVisitor]) {
+  SourceMetadataExtractor([ this.metadataVisitor ]) {
     if (metadataVisitor == null) {
       metadataVisitor = new DirectiveMetadataCollectingVisitor();
     }
   }
 
-  List<DirectiveInfo> gatherDirectiveInfo(root) {
+  List<DirectiveInfo> gatherDirectiveInfo(root, SourceCrawler sourceCrawler) {
     sourceCrawler.crawl(root, metadataVisitor);
 
     List<DirectiveInfo> directives = <DirectiveInfo>[];
     metadataVisitor.metadata.forEach((DirectiveMetadata meta) {
       DirectiveInfo dirInfo = new DirectiveInfo();
       dirInfo.selector = meta.selector;
+      dirInfo.template = meta.template;
       meta.attributeMappings.forEach((attrName, mappingSpec) {
         var spec = _specs
             .firstWhere((specPrefix) => mappingSpec.startsWith(specPrefix),
                 orElse: () => throw '$mappingSpec no matching spec');
         if (spec != '@') {
-          dirInfo.expressionAttrs.add(snakecase(attrName));
+          dirInfo.expressionAttrs.add(attrName);
         }
         if (mappingSpec.length == 1) { // Shorthand. Remove.
           // TODO(pavelgj): Figure out if short-hand LHS should be expanded
           // and added to the expressions list.
           if (attrName != '.') {
-            dirInfo.expressions.add(_maybeCamelCase(attrName));
+            dirInfo.expressions.add(attrName);
           }
         } else {
           mappingSpec = mappingSpec.substring(spec.length);
@@ -60,7 +59,6 @@ class SourceMetadataExtractor {
       });
 
       meta.exportExpressionAttrs.forEach((attr) {
-        attr = snakecase(attr);
         if (!dirInfo.expressionAttrs.contains(attr)) {
           dirInfo.expressionAttrs.add(attr);
         }
@@ -74,7 +72,7 @@ class SourceMetadataExtractor {
 
 
       // No explicit selector specified on the directive, compute one.
-      var className = snakecase(meta.className);
+      var className = meta.className;
       if (dirInfo.selector == null) {
         if (meta.type == COMPONENT) {
           if (className.endsWith(_COMPONENT)) {
@@ -93,8 +91,7 @@ class SourceMetadataExtractor {
             dirInfo.selector = className.
                 substring(0, className.length - _DIRECTIVE.length);
           } else {
-            throw "Directive name '$className' must end with $_DIRECTIVE, "
-            "$_ATTR_DIRECTIVE, $_COMPONENT or have a \$selector field.";
+            throw "Directive name '$className' must have a \$selector field.";
           }
         }
       }
@@ -116,13 +113,6 @@ class SourceMetadataExtractor {
 
     return directives;
   }
-}
-
-String _maybeCamelCase(String s) {
-  if (s.indexOf('-') > -1) {
-    return camelcase(s);
-  }
-  return s;
 }
 
 class DirectiveMetadataCollectingVisitor {
@@ -155,6 +145,9 @@ class DirectiveMetadataCollectingVisitor {
             var paramName = namedArg.name.label.name;
             if (paramName == 'selector') {
               meta.selector = assertString(namedArg.expression).stringValue;
+            }
+            if (paramName == 'template') {
+              meta.template = assertString(namedArg.expression).stringValue;
             }
             if (paramName == 'map') {
               MapLiteral map = namedArg.expression;

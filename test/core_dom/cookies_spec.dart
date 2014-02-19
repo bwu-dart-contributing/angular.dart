@@ -3,40 +3,45 @@ library cookies_spec;
 import '../_specs.dart';
 import 'package:angular/core_dom/module.dart';
 
-main() => describe('browser cookies', () {
-    var cookies;
+main() => describe('cookies', () {
+  deleteAllCookies() {
+    var cookies = document.cookie.split(";");
+    var path = window.location.pathname;
 
-    deleteAllCookies() {
-      var cookies = document.cookie.split(";");
-      var path = window.location.pathname;
-
-      for (var i = 0; i < cookies.length; i++) {
-        var cookie = cookies[i];
-        var eqPos = cookie.indexOf("=");
-        var name = eqPos > -1 ? cookie.substring(0, eqPos) : '';
-        var parts = path.split('/');
-        while (!parts.isEmpty) {
-          var joinedParts = parts.join('/');
-          document.cookie = name + "=;path=" + (joinedParts.isEmpty ? '/': joinedParts) +
-              ";expires=Thu, 01 Jan 1970 00:00:00 GMT";
-          parts.removeLast();
-        }
+    for (var i = 0; i < cookies.length; i++) {
+      var cookie = cookies[i];
+      var eqPos = cookie.indexOf("=");
+      var name = eqPos > -1 ? cookie.substring(0, eqPos) : '';
+      var parts = path.split('/');
+      while (!parts.isEmpty) {
+        var joinedParts = parts.join('/');
+        document.cookie = name + "=;path=" + (joinedParts.isEmpty ? '/': joinedParts) +
+          ";expires=Thu, 01 Jan 1970 00:00:00 GMT";
+        parts.removeLast();
       }
     }
+  }
 
-    beforeEach(inject((BrowserCookies iCookies) {
-      deleteAllCookies();
-      expect(document.cookie).toEqual('');
+  afterEach(() {
+    deleteAllCookies();
+    expect(document.cookie).toEqual('');
+  });
 
-      cookies = iCookies;
+  describe('browser cookies', () {
+    var cookies;
+
+    beforeEach(module((Module module) {
+      module.type(ExceptionHandler, implementedBy: LoggingExceptionHandler);
     }));
 
-
-    afterEach(() {
+    beforeEach(inject((BrowserCookies iCookies) {
+      iCookies.cookiePath = '/';
       deleteAllCookies();
       expect(document.cookie).toEqual('');
-    });
 
+      iCookies.cookiePath = '/';
+      cookies = iCookies;
+    }));
 
     describe('remove via cookies(cookieName, null)', () {
 
@@ -60,7 +65,7 @@ main() => describe('browser cookies', () {
 
     describe('put via cookies(cookieName, string)', () {
 
-      it('should create and store a cookie', () {
+    it('should create and store a cookie', () {
         cookies['cookieName'] = 'cookie=Value';
         expect(document.cookie).toEqual('cookieName=cookie%3DValue');
         expect(cookies.all).toEqual({'cookieName':'cookie=Value'});
@@ -87,7 +92,8 @@ main() => describe('browser cookies', () {
         expect(rawCookies).toContain('cookie2%3Dbar%3Bbaz=val%3Due');
       });
 
-      it('should log warnings when 4kb per cookie storage limit is reached', () {
+      it('should log warnings when 4kb per cookie storage limit is reached',
+          inject((ExceptionHandler exceptionHandler) {
         var i, longVal = '', cookieStr;
 
         for(i=0; i<4083; i++) {
@@ -99,12 +105,12 @@ main() => describe('browser cookies', () {
         expect(document.cookie).not.toEqual(cookieStr);
         expect(cookies['x']).toEqual(longVal);
         //expect(logs.warn).toEqual([]);
-
-        cookies['x'] = longVal + 'xxxx'; //total size 4097-4099, a warning should be logged
+        var overflow = 'xxxxxxxxxxxxxxxxxxxx';
+        cookies['x'] = longVal + overflow; //total size 4097-4099, a warning should be logged
         //expect(logs.warn).toEqual(
         //    [[ "Cookie 'x' possibly not set or overflowed because it was too large (4097 > 4096 " +
         //    "bytes)!" ]]);
-        expect(document.cookie).not.toContain('xxxx');
+        expect(document.cookie).not.toContain(overflow);
 
         //force browser to dropped a cookie and make sure that the cache is not out of sync
         cookies['x'] = 'shortVal';
@@ -114,11 +120,18 @@ main() => describe('browser cookies', () {
 
         if (document.cookie != cookieStr) {
           throw "browser didn't drop long cookie when it was expected. make the " +
-          "cookie in this test longer";
+            "cookie in this test longer";
         }
 
         expect(cookies['x']).toEqual('shortVal');
-      });
+        var errors = (exceptionHandler as LoggingExceptionHandler).errors;
+        expect(errors.length).toEqual(2);
+        expect(errors[0].error).
+        toEqual("Cookie 'x' possibly not set or overflowed because it was too large (4113 > 4096 bytes)!");
+        expect(errors[1].error).
+        toEqual("Cookie 'x' possibly not set or overflowed because it was too large (12259 > 4096 bytes)!");
+        errors.clear();
+      }));
     });
 
     xdescribe('put via cookies(cookieName, string), if no <base href> ', () {
@@ -196,4 +209,35 @@ main() => describe('browser cookies', () {
       document.cookie = "existingCookie=existingValue;path=/";
       expect(cookies.all).toEqual({'existingCookie':'existingValue'});
     });
+  });
+
+  describe('cookies service', () {
+    var cookiesService;
+    beforeEach(inject((Cookies iCookies) {
+      cookiesService = iCookies;
+      document.cookie = 'oatmealCookie=fresh;path=/';
+    }));
+
+    it('should read cookie', () {
+      expect(cookiesService["oatmealCookie"]).toEqual("fresh");
+    });
+
+    describe("set cookie", () {
+      it('should set new key value pair', () {
+        cookiesService["oven"] = "hot";
+        expect(document.cookie).toContain("oven=hot");
+      });
+
+      it('should override existing value', () {
+        cookiesService["oatmealCookie"] = "stale";
+        expect(document.cookie).toContain("oatmealCookie=stale");
+      });
+    });
+
+    it('should remove cookie', () {
+      cookiesService.remove("oatmealCookie");
+      expect(document.cookie).not.toContain("oatmealCookie");
+    });
+  });
 });
+

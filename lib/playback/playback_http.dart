@@ -5,15 +5,17 @@ import 'dart:convert' show JSON;
 import 'dart:html';
 
 import 'package:angular/core_dom/module.dart';
+import 'package:angular/core/service.dart';
 import 'package:angular/mock/module.dart' as mock;
 
-import 'playback_data.dart' as playback_data;
+import 'package:angular/playback/playback_data.dart' as playback_data;
 
+@NgInjectableService()
 class PlaybackHttpBackendConfig {
   requestKey(String url,
-                 {String method, bool withCredentials, String responseType,
-                 String mimeType, Map<String, String> requestHeaders, sendData,
-                 void onProgress(ProgressEvent e)}) {
+             {String method, bool withCredentials, String responseType,
+             String mimeType, Map<String, String> requestHeaders, sendData,
+             void onProgress(ProgressEvent e)}) {
     return JSON.encode({
         "url": url,
         "method": method,
@@ -27,7 +29,7 @@ class PlaybackHttpBackendConfig {
 // the HttpBackend, but it will be implemented by ourselves.
 class HttpBackendWrapper {
   HttpBackend backend;
-  HttpBackendWrapper(HttpBackend this.backend);
+  HttpBackendWrapper(this.backend);
 }
 
 class RecordingHttpBackend implements HttpBackend {
@@ -35,11 +37,8 @@ class RecordingHttpBackend implements HttpBackend {
   HttpBackend _prodBackend;
   PlaybackHttpBackendConfig _config;
 
-  RecordingHttpBackend(HttpBackendWrapper wrapper,
-                       PlaybackHttpBackendConfig this._config) {
-    this._prodBackend = wrapper.backend;
-
-  }
+  RecordingHttpBackend(HttpBackendWrapper wrapper, this._config)
+      : _prodBackend = wrapper.backend;
 
   Future request(String url,
                  {String method, bool withCredentials, String responseType,
@@ -80,7 +79,7 @@ class PlaybackHttpBackend implements HttpBackend {
 
   PlaybackHttpBackendConfig _config;
 
-  PlaybackHttpBackend(PlaybackHttpBackendConfig this._config);
+  PlaybackHttpBackend(this._config);
 
   Map data = playback_data.playbackData;
 
@@ -97,9 +96,7 @@ class PlaybackHttpBackend implements HttpBackend {
         sendData: sendData,
         onProgress: onProgress);
 
-    if (!data.containsKey(key)) {
-      throw ["Request is not recorded $key"];
-    }
+    if (!data.containsKey(key)) throw ["Request is not recorded $key"];
     var playback = data[key];
     return new Future.value(
         new mock.MockHttpRequest(
